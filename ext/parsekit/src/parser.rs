@@ -242,7 +242,7 @@ impl Parser {
             // Continue on page errors rather than failing entirely
             if let Ok(page) = doc.load_page(page_num) {
                 // Extract text from the page
-                if let Ok(text) = page.to_text() {
+                if let Ok(text) = page.to_text_page(mupdf::TextPageFlags::empty()).and_then(|tp| tp.to_text()) {
                     all_text.push_str(&text);
                     all_text.push('\n');
                 }
