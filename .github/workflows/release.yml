@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.0.0)"
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Update version
+        run: |
+          VERSION="${{ inputs.version }}"
+          sed -i "s/VERSION = \".*\"/VERSION = \"$VERSION\"/" lib/parsekit/version.rb
+          echo "Updated version to $VERSION"
+          cat lib/parsekit/version.rb
+
+      - name: Commit and tag
+        run: |
+          VERSION="${{ inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add lib/parsekit/version.rb
+          git commit -m "Release v$VERSION"
+          git tag "$VERSION"
+          git push origin HEAD:${{ github.ref_name }} --tags
+
+      - name: Build gem
+        run: gem build parsekit.gemspec
+
+      - name: Push to RubyGems
+        run: |
+          mkdir -p ~/.gem
+          echo "---" > ~/.gem/credentials
+          echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" >> ~/.gem/credentials
+          chmod 0600 ~/.gem/credentials
+          gem push parsekit-*.gem
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ inputs.version }}"
+          gh release create "$VERSION" \
+            --title "v$VERSION" \
+            --generate-notes \
+            parsekit-*.gem
