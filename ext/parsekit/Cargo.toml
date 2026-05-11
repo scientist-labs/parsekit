@@ -18,7 +18,7 @@ mupdf = { version = "0.6", default-features = false, features = [] }
 # OCR - Using tesseract-rs for both system and bundled modes
 tesseract-rs = "0.2"  # Tesseract with optional bundling
 image = "0.25"  # Image processing library (match rusty-tesseract's version)
-calamine = "0.34"  # Excel parsing
+calamine = "0.35"  # Excel parsing
 docx-rs = "0.4"  # Word document parsing
 quick-xml = "0.39"  # XML parsing
 zip = "8.2"  # ZIP archive handling for PPTX
