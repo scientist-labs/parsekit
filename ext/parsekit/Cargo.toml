@@ -14,7 +14,7 @@ name = "parsekit"
 magnus = { version = "0.8", features = ["rb-sys"] }
 # Document parsing - testing embedded C libraries
 # MuPDF builds from source and statically links
-mupdf = { version = "0.6", default-features = false, features = [] }
+mupdf = { version = "0.7", default-features = false, features = [] }
 # OCR - Using tesseract-rs for both system and bundled modes
 tesseract-rs = "0.2"  # Tesseract with optional bundling
 image = "0.25"  # Image processing library (match rusty-tesseract's version)
