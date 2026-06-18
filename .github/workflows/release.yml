@@ -65,7 +65,7 @@ jobs:
     # Normal PRs skip the expensive matrix; only a `dry-run-release` label opts in.
     # Tag pushes and manual dispatch always run.
     if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'dry-run-release') }}
-    uses: scientist-labs/rust-gem-release/.github/workflows/release.yml@v0
+    uses: scientist-labs/rust-gem-release/.github/workflows/release.yml@0.9.0
     with:
       # gem-name == ext-name == gemspec basename == "parsekit", so ext-name and
       # gemspec resolve to their defaults and need not be passed.
@@ -76,12 +76,14 @@ jobs:
       # parsekit.gemspec reads the generic default env var RUST_GEM_PLATFORM, so
       # platform-gem-env is left at its default and omitted.
       #
-      # FULL linux precompiled support. No linux-extra-apt: the bundled MuPDF and
-      # Tesseract/Leptonica build from source using cmake + clang already present in
-      # the stock rb-sys cross image (rbsys/<platform>:0.9.128) plus network egress;
-      # no extra apt package is needed. rb_sys is pinned to 0.9.128 in Cargo.lock.
+      # x86_64-linux + darwin + source. The bundled MuPDF and Tesseract/Leptonica
+      # build from source via cmake + clang already in the stock rb-sys cross image.
+      # aarch64-linux is OFF: tesseract-rs 0.2 compiles Leptonica/Tesseract from
+      # source with NO cross-awareness, so the aarch64 leg links a wrong-arch object
+      # (`libleptonica.a: file in wrong format`). Genuine infeasibility without
+      # switching off the bundled-tesseract crate; arm64-linux falls back to source.
       build-x86_64-linux: true
-      build-aarch64-linux: true
+      build-aarch64-linux: false
       # MuPDF + the bundled Tesseract/Leptonica from-source compile (incl. the
       # source-zip downloads) is heavy and runs once per Ruby ABI across both
       # linux arches; raise the per-leg timeout above the 360 default so a
