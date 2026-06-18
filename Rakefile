@@ -2,12 +2,22 @@
 
 require "bundler/gem_tasks"
 require "rake/extensiontask"
-require "rspec/core/rake_task"
 
-# RSpec test task
-RSpec::Core::RakeTask.new(:spec)
+# Dev-only tasks (rspec) must not abort Rakefile loading in the cross-gem /
+# rb-sys-dock build container, which installs only the runtime bundle. Guard the
+# require + task definition so `rake native:<platform>` works without dev gems.
+begin
+  require "rspec/core/rake_task"
+  RSpec::Core::RakeTask.new(:spec)
+rescue LoadError
+  desc "Run RSpec tests (rspec not installed)"
+  task :spec do
+    abort "rspec is not available. Install the development dependencies (bundle install)."
+  end
+end
 
-# Load the gemspec
+# Load the gemspec so Rake::ExtensionTask emits native:<platform> tasks (the
+# cross-gem / rb-sys-dock entrypoint) in addition to compile.
 spec = Gem::Specification.load("parsekit.gemspec")
 
 # Extension compilation task
@@ -15,7 +25,7 @@ Rake::ExtensionTask.new("parsekit", spec) do |ext|
   ext.lib_dir = "lib/parsekit"
   ext.source_pattern = "*.{c,cc,cpp,rs}"
   ext.cross_compile = true
-  ext.cross_platform = %w[x86_64-linux arm64-darwin x86_64-darwin aarch64-linux]
+  ext.cross_platform = %w[x86_64-linux aarch64-linux arm64-darwin x86_64-darwin]
 end
 
 # Work around rake-compiler trying to stage non-existent build artifacts
