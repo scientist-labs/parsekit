@@ -2,8 +2,8 @@ name: Release
 
 # ============================================================================
 # parsekit's release workflow — a thin caller of the shared reusable workflow
-# scientist-labs/rust-gem-release (pinned @v0, the moving-major alias that
-# currently resolves to 0.7.0). Modeled on the proven green template
+# scientist-labs/rust-gem-release (pinned @0.10.0, an explicit version pin —
+# the moving-major alias is being retired). Modeled on the proven green template
 # (tokenkit/phrasekit/red-candle, all platforms green on rubygems.org).
 #
 # This caller owns ONLY what a reusable (on: workflow_call) workflow cannot:
@@ -65,7 +65,7 @@ jobs:
     # Normal PRs skip the expensive matrix; only a `dry-run-release` label opts in.
     # Tag pushes and manual dispatch always run.
     if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'dry-run-release') }}
-    uses: scientist-labs/rust-gem-release/.github/workflows/release.yml@0.9.0
+    uses: scientist-labs/rust-gem-release/.github/workflows/release.yml@0.10.0
     with:
       # gem-name == ext-name == gemspec basename == "parsekit", so ext-name and
       # gemspec resolve to their defaults and need not be passed.
