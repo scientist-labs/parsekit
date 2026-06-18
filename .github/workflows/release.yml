@@ -76,10 +76,10 @@ jobs:
       # parsekit.gemspec reads the generic default env var RUST_GEM_PLATFORM, so
       # platform-gem-env is left at its default and omitted.
       #
-      # FULL linux precompiled support: build BOTH linux legs against the
-      # deps-enriched cross image. linux-cross-image-tag defaults to 0.9.128
-      # (== the rb-sys version pinned in ext/parsekit/Cargo.lock), so it is omitted.
-      linux-cross-image-repo: ghcr.io/scientist-labs/rust-gem-cross
+      # FULL linux precompiled support. No linux-extra-apt: the bundled MuPDF and
+      # Tesseract/Leptonica build from source using cmake + clang already present in
+      # the stock rb-sys cross image (rbsys/<platform>:0.9.128) plus network egress;
+      # no extra apt package is needed. rb_sys is pinned to 0.9.128 in Cargo.lock.
       build-x86_64-linux: true
       build-aarch64-linux: true
       # MuPDF + the bundled Tesseract/Leptonica from-source compile (incl. the
