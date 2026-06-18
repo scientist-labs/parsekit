@@ -2,9 +2,15 @@
 
 require_relative "parsekit/version"
 
-# Load the native extension
+# Load the compiled Rust extension. Precompiled (platform) gems install it into a
+# Ruby-ABI-versioned subdir (lib/parsekit/<major.minor>/parsekit.{so,bundle}) so a
+# single fat gem can carry a binary per Ruby version; source/dev builds place it flat
+# at lib/parsekit/parsekit.{so,bundle}. Try the versioned path first, fall back to the
+# flat one. Resolution goes through $LOAD_PATH (`require`, never `require_relative`)
+# because RubyGems installs native extensions outside the gem's lib/ dir.
 begin
-  require_relative "parsekit/parsekit"
+  RUBY_VERSION =~ /(\d+\.\d+)/
+  require "parsekit/#{Regexp.last_match(1)}/parsekit"
 rescue LoadError
   require "parsekit/parsekit"
 end
