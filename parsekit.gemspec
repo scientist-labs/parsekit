@@ -26,7 +26,23 @@ Gem::Specification.new do |spec|
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
-  spec.extensions = ["ext/parsekit/extconf.rb"]
+
+  # Precompiled platform gems (arm64-darwin, x86_64-linux, ...) carry one compiled
+  # extension per Ruby ABI under lib/parsekit/<major.minor>/ and must NOT declare
+  # extensions, or RubyGems would try to recompile from Rust source on install —
+  # defeating the precompiled gem. The shared rust-gem-release workflow sets
+  # RUST_GEM_PLATFORM to enter this branch when assembling the fat darwin gem;
+  # the linux platform gems are assembled by rake-compiler/rb_sys (via cross-gem),
+  # which clears extensions itself. The per-ABI .bundle/.so are build artifacts
+  # (gitignored) added explicitly here so they are packed by `gem build`.
+  # Unset => normal source gem that compiles on install.
+  if (platform_gem = ENV["RUST_GEM_PLATFORM"])
+    spec.platform   = platform_gem
+    spec.extensions = []
+    spec.files     += Dir["lib/parsekit/*/parsekit.bundle"] + Dir["lib/parsekit/*/parsekit.so"]
+  else
+    spec.extensions = ["ext/parsekit/extconf.rb"]
+  end
 
   # Runtime dependencies
   spec.add_dependency "rb_sys", "~> 0.9"

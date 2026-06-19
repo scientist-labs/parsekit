@@ -1,60 +1,96 @@
 name: Release
 
+# ============================================================================
+# parsekit's release workflow — a thin caller of the shared reusable workflow
+# scientist-labs/rust-gem-release (pinned @0.10.0, an explicit version pin —
+# the moving-major alias is being retired). Modeled on the proven green template
+# (tokenkit/phrasekit/red-candle, all platforms green on rubygems.org).
+#
+# This caller owns ONLY what a reusable (on: workflow_call) workflow cannot:
+#   - the version-tag trigger + the label-gated PR dry-run trigger
+#   - the contents:write token grant (a reusable workflow can only REDUCE the
+#     inherited token scope, so the caller must grant it here)
+#   - parsekit's per-gem inputs + the RubyGems secret mapping
+#
+# SAFETY: publish defaults to a DRY-RUN. On manual workflow_dispatch publish is
+# false unless explicitly toggled on; a labeled PR dry-run is ALWAYS publish=false;
+# only a real version-tag push publishes (and even then, push is a clean no-op if
+# RUBYGEMS_API_KEY is empty).
+#
+# FULL LINUX PRECOMPILED SUPPORT (x86_64-linux + aarch64-linux):
+# parsekit's native extension builds MuPDF (mupdf-sys, from C source) and, via
+# tesseract-rs 0.2's bundled build, Tesseract 5.3.4 + Leptonica 1.84.1 from
+# source. The stock rb-sys-dock cross image (rbsys/<platform>:0.9.128) carries
+# cmake + clang/libclang (all mupdf-sys + the bundled C++ build need) and the
+# rb-sys-dock container has network egress for tesseract-rs's source-zip
+# downloads — so both linux legs build against the DEPS-ENRICHED cross image
+# pre-seeded by linux-cross-image-repo below (FROM rbsys/<platform>:0.9.128,
+# plus the union apt deps incl. leptonica/tesseract dev libs for forward-compat
+# with a future system-tesseract path). The :0.9.128 image tag is load-bearing:
+# ext/parsekit/Cargo.lock pins rb-sys to 0.9.128 so rb-sys-dock derives exactly
+# that image name and finds our pre-seeded image locally (skipping its own pull).
+#
+# RUNTIME NOTE (carried forward, not solved here): the precompiled gem does NOT
+# bundle eng.traineddata, so OCR at runtime needs system tessdata reachable via
+# TESSDATA_PREFIX. This affects gem CONSUMERS, not the build.
+# ============================================================================
+
 on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"        # release:    0.1.3
+      - "[0-9]+.[0-9]+.[0-9]+.*"      # prerelease: 0.1.3.pre1 (RubyGems dot form)
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+.*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to release (e.g. 1.0.0)"
-        required: true
-        type: string
+      publish:
+        type: boolean
+        default: false
+        description: "push to RubyGems (default off = dry-run)"
+  # A PR labeled `dry-run-release` runs the full precompiled release matrix as a
+  # publish=false dry-run, validating the real pipeline pre-merge. A reusable
+  # workflow is branch-only, so workflow_dispatch cannot reach it — the label is
+  # the only pre-merge lever.
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+# A reusable workflow can only REDUCE the inherited token scope, never elevate it —
+# so the caller MUST grant contents: write here (for `gh release create`).
+permissions:
+  contents: write
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-          bundler-cache: true
-
-      - name: Update version
-        run: |
-          VERSION="${{ inputs.version }}"
-          sed -i "s/VERSION = \".*\"/VERSION = \"$VERSION\"/" lib/parsekit/version.rb
-          echo "Updated version to $VERSION"
-          cat lib/parsekit/version.rb
-
-      - name: Commit and tag
-        run: |
-          VERSION="${{ inputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add lib/parsekit/version.rb
-          git commit -m "Release v$VERSION"
-          git tag "$VERSION"
-          git push origin HEAD:${{ github.ref_name }} --tags
-
-      - name: Build gem
-        run: gem build parsekit.gemspec
-
-      - name: Push to RubyGems
-        run: |
-          mkdir -p ~/.gem
-          echo "---" > ~/.gem/credentials
-          echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" >> ~/.gem/credentials
-          chmod 0600 ~/.gem/credentials
-          gem push parsekit-*.gem
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="${{ inputs.version }}"
-          gh release create "$VERSION" \
-            --title "v$VERSION" \
-            --generate-notes \
-            parsekit-*.gem
+    # Normal PRs skip the expensive matrix; only a `dry-run-release` label opts in.
+    # Tag pushes and manual dispatch always run.
+    if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'dry-run-release') }}
+    uses: scientist-labs/rust-gem-release/.github/workflows/release.yml@0.10.0
+    with:
+      # gem-name == ext-name == gemspec basename == "parsekit", so ext-name and
+      # gemspec resolve to their defaults and need not be passed.
+      gem-name: parsekit
+      # NOTE: the constant is ParseKit (capital K), not Parsekit — the tag must
+      # equal this command's output or the prepare job's tag==version guard fails.
+      version-command: ruby -r./lib/parsekit/version -e 'print ParseKit::VERSION'
+      # parsekit.gemspec reads the generic default env var RUST_GEM_PLATFORM, so
+      # platform-gem-env is left at its default and omitted.
+      #
+      # x86_64-linux + darwin + source. The bundled MuPDF and Tesseract/Leptonica
+      # build from source via cmake + clang already in the stock rb-sys cross image.
+      # aarch64-linux is OFF: tesseract-rs 0.2 compiles Leptonica/Tesseract from
+      # source with NO cross-awareness, so the aarch64 leg links a wrong-arch object
+      # (`libleptonica.a: file in wrong format`). Genuine infeasibility without
+      # switching off the bundled-tesseract crate; arm64-linux falls back to source.
+      build-x86_64-linux: true
+      build-aarch64-linux: false
+      # MuPDF + the bundled Tesseract/Leptonica from-source compile (incl. the
+      # source-zip downloads) is heavy and runs once per Ruby ABI across both
+      # linux arches; raise the per-leg timeout above the 360 default so a
+      # slow-but-healthy build is not killed mid-compile.
+      job-timeout-minutes: 480
+      # Publish only on a real tag push, or a manual dispatch that explicitly opts
+      # in. Every PR dry-run (label-gated) and every non-tag event stays publish=false.
+      publish: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+    secrets:
+      rubygems-api-key: ${{ secrets.RUBYGEMS_API_KEY }}
