@@ -2,7 +2,7 @@ name: Release
 
 # ============================================================================
 # parsekit's release workflow — a thin caller of the shared reusable workflow
-# scientist-labs/rust-gem-release (pinned @0.10.0, an explicit version pin —
+# scientist-labs/rust-gem-release (pinned to an explicit version — see uses: below —
 # the moving-major alias is being retired). Modeled on the proven green template
 # (tokenkit/phrasekit/red-candle, all platforms green on rubygems.org).
 #
@@ -42,6 +42,10 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+.*"
   workflow_dispatch:
     inputs:
+      version:
+        type: string
+        default: ""
+        description: "Version to cut + release, e.g. 1.0.0 (blank = build-only dry-run)"
       publish:
         type: boolean
         default: false
@@ -63,7 +67,7 @@ jobs:
     # Normal PRs skip the expensive matrix; only a `dry-run-release` label opts in.
     # Tag pushes and manual dispatch always run.
     if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'dry-run-release') }}
-    uses: scientist-labs/rust-gem-release/.github/workflows/release.yml@0.10.0
+    uses: scientist-labs/rust-gem-release/.github/workflows/release.yml@0.11.0
     with:
       # gem-name == ext-name == gemspec basename == "parsekit", so ext-name and
       # gemspec resolve to their defaults and need not be passed.
@@ -71,6 +75,9 @@ jobs:
       # NOTE: the constant is ParseKit (capital K), not Parsekit — the tag must
       # equal this command's output or the prepare job's tag==version guard fails.
       version-command: ruby -r./lib/parsekit/version -e 'print ParseKit::VERSION'
+      version: ${{ inputs.version }}
+      bump-command: |
+        sed -i 's/^\( *VERSION *= *\).*/\1"'"$VERSION"'"/' lib/parsekit/version.rb
       # parsekit.gemspec reads the generic default env var RUST_GEM_PLATFORM, so
       # platform-gem-env is left at its default and omitted.
       #
