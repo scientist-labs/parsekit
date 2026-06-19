@@ -20,15 +20,13 @@ name: Release
 # FULL LINUX PRECOMPILED SUPPORT (x86_64-linux + aarch64-linux):
 # parsekit's native extension builds MuPDF (mupdf-sys, from C source) and, via
 # tesseract-rs 0.2's bundled build, Tesseract 5.3.4 + Leptonica 1.84.1 from
-# source. The stock rb-sys-dock cross image (rbsys/<platform>:0.9.128) carries
+# source. The stock rb-sys-dock cross image (rbsys/<platform>:<tag>) already carries
 # cmake + clang/libclang (all mupdf-sys + the bundled C++ build need) and the
-# rb-sys-dock container has network egress for tesseract-rs's source-zip
-# downloads — so both linux legs build against the DEPS-ENRICHED cross image
-# pre-seeded by linux-cross-image-repo below (FROM rbsys/<platform>:0.9.128,
-# plus the union apt deps incl. leptonica/tesseract dev libs for forward-compat
-# with a future system-tesseract path). The :0.9.128 image tag is load-bearing:
-# ext/parsekit/Cargo.lock pins rb-sys to 0.9.128 so rb-sys-dock derives exactly
-# that image name and finds our pre-seeded image locally (skipping its own pull).
+# rb-sys-dock container has network egress for tesseract-rs's source-zip downloads —
+# so the linux leg needs NO extra system deps and we pass NO linux-image-setup input:
+# the leg builds directly against the stock cross image, with everything compiled from
+# source inside it. ext/parsekit/Cargo.lock pins rb-sys, which fixes the
+# rbsys/<platform>:<tag> base image rb-sys-dock derives.
 #
 # RUNTIME NOTE (carried forward, not solved here): the precompiled gem does NOT
 # bundle eng.traineddata, so OCR at runtime needs system tessdata reachable via
