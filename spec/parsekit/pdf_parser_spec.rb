@@ -31,14 +31,17 @@ RSpec.describe "PDF Parsing with MuPDF" do
 
   describe "#parse_pdf" do
     context "with valid PDF data" do
+      # Use the sample.pdf fixture: hand-crafted minimal PDFs (Helvetica Type1 without
+      # embedded encoding) stopped yielding extractable text in MuPDF >= 0.8.0 (mupdf
+      # C lib 1.27.2). sample.pdf is a proper PDF that works across all versions.
       let(:simple_pdf) do
-        generate_minimal_pdf("Hello World").bytes
+        File.read(File.join(__dir__, "..", "fixtures", "sample.pdf"), mode: "rb").bytes
       end
 
       it "extracts text from PDF" do
         result = parser.parse_pdf(simple_pdf)
         expect(result).to be_a(String)
-        expect(result).to include("Hello World")
+        expect(result).to include("PDF document for testing")
       end
     end
 
@@ -136,7 +139,13 @@ RSpec.describe "PDF Parsing with MuPDF" do
     let(:test_pdf_path) { File.join(temp_dir, "test.pdf") }
 
     before do
-      File.write(test_pdf_path, generate_minimal_pdf("Test Content"))
+      # Copy sample.pdf fixture rather than generating a hand-crafted PDF.
+      # Hand-crafted minimal PDFs (Helvetica Type1 without embedded encoding) stopped
+      # yielding extractable text in MuPDF >= 0.8.0 (mupdf C lib 1.27.2).
+      FileUtils.cp(
+        File.join(__dir__, "..", "fixtures", "sample.pdf"),
+        test_pdf_path
+      )
     end
 
     after do
@@ -145,14 +154,16 @@ RSpec.describe "PDF Parsing with MuPDF" do
 
     it "automatically detects and parses PDF files" do
       result = parser.parse_file(test_pdf_path)
-      expect(result).to include("Test Content")
+      expect(result).to include("PDF document for testing")
     end
   end
 
   describe "#parse_bytes with PDF auto-detection" do
     it "detects PDF from magic bytes and parses correctly" do
-      result = parser.parse_bytes(generate_minimal_pdf("Auto-detected PDF").bytes)
-      expect(result).to include("Auto-detected PDF")
+      # Use sample.pdf fixture: minimal hand-crafted PDFs stopped yielding text in MuPDF >= 0.8.0.
+      pdf_bytes = File.read(File.join(__dir__, "..", "fixtures", "sample.pdf"), mode: "rb").bytes
+      result = parser.parse_bytes(pdf_bytes)
+      expect(result).to include("PDF document for testing")
     end
   end
 
