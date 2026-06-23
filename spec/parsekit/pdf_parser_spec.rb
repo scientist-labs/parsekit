@@ -3,56 +3,45 @@
 RSpec.describe "PDF Parsing with MuPDF" do
   let(:parser) { ParseKit::Parser.new }
 
+  # Generate a minimal but structurally valid PDF with correct xref byte offsets.
+  # Hand-crafted heredoc PDFs with hardcoded offsets fail on MuPDF >= 0.8.0 because
+  # the newer library is stricter about xref validation. This helper computes offsets
+  # from the actual byte positions so the result is always a well-formed PDF.
+  def generate_minimal_pdf(text)
+    header  = "%PDF-1.4\n"
+    obj1    = "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    obj2    = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    obj3    = "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>\nendobj\n"
+    obj4    = "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    stream  = "BT\n/F1 12 Tf\n100 700 Td\n(#{text}) Tj\nET\n"
+    obj5    = "5 0 obj\n<< /Length #{stream.bytesize} >>\nstream\n#{stream}endstream\nendobj\n"
+
+    offsets = []
+    pos = header.bytesize
+    [obj1, obj2, obj3, obj4].each { |o| offsets << pos; pos += o.bytesize }
+    offsets << pos
+    xref_pos = pos + obj5.bytesize
+
+    xref    = "xref\n0 6\n0000000000 65535 f \n"
+    offsets.each { |o| xref += "%010d 00000 n \n" % o }
+    trailer = "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n#{xref_pos}\n%%EOF\n"
+
+    header + obj1 + obj2 + obj3 + obj4 + obj5 + xref + trailer
+  end
+
   describe "#parse_pdf" do
     context "with valid PDF data" do
+      # Use the sample.pdf fixture: hand-crafted minimal PDFs (Helvetica Type1 without
+      # embedded encoding) stopped yielding extractable text in MuPDF >= 0.8.0 (mupdf
+      # C lib 1.27.2). sample.pdf is a proper PDF that works across all versions.
       let(:simple_pdf) do
-        # Minimal valid PDF with "Hello World" text
-        # This is a hand-crafted minimal PDF
-        pdf_content = <<~PDF
-          %PDF-1.4
-          1 0 obj
-          << /Type /Catalog /Pages 2 0 R >>
-          endobj
-          2 0 obj
-          << /Type /Pages /Kids [3 0 R] /Count 1 >>
-          endobj
-          3 0 obj
-          << /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>
-          endobj
-          4 0 obj
-          << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-          endobj
-          5 0 obj
-          << /Length 44 >>
-          stream
-          BT
-          /F1 12 Tf
-          100 700 Td
-          (Hello World) Tj
-          ET
-          endstream
-          endobj
-          xref
-          0 6
-          0000000000 65535 f
-          0000000009 00000 n
-          0000000062 00000 n
-          0000000121 00000 n
-          0000000259 00000 n
-          0000000338 00000 n
-          trailer
-          << /Size 6 /Root 1 0 R >>
-          startxref
-          435
-          %%EOF
-        PDF
-        pdf_content.bytes
+        File.read(File.join(__dir__, "..", "fixtures", "sample.pdf"), mode: "rb").bytes
       end
 
       it "extracts text from PDF" do
         result = parser.parse_pdf(simple_pdf)
         expect(result).to be_a(String)
-        expect(result).to include("Hello World")
+        expect(result).to include("PDF document for testing")
       end
     end
 
@@ -150,46 +139,13 @@ RSpec.describe "PDF Parsing with MuPDF" do
     let(:test_pdf_path) { File.join(temp_dir, "test.pdf") }
 
     before do
-      # Create a minimal PDF file
-      pdf_content = <<~PDF
-        %PDF-1.4
-        1 0 obj
-        << /Type /Catalog /Pages 2 0 R >>
-        endobj
-        2 0 obj
-        << /Type /Pages /Kids [3 0 R] /Count 1 >>
-        endobj
-        3 0 obj
-        << /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>
-        endobj
-        4 0 obj
-        << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-        endobj
-        5 0 obj
-        << /Length 44 >>
-        stream
-        BT
-        /F1 12 Tf
-        100 700 Td
-        (Test Content) Tj
-        ET
-        endstream
-        endobj
-        xref
-        0 6
-        0000000000 65535 f
-        0000000009 00000 n
-        0000000062 00000 n
-        0000000121 00000 n
-        0000000259 00000 n
-        0000000338 00000 n
-        trailer
-        << /Size 6 /Root 1 0 R >>
-        startxref
-        435
-        %%EOF
-      PDF
-      File.write(test_pdf_path, pdf_content)
+      # Copy sample.pdf fixture rather than generating a hand-crafted PDF.
+      # Hand-crafted minimal PDFs (Helvetica Type1 without embedded encoding) stopped
+      # yielding extractable text in MuPDF >= 0.8.0 (mupdf C lib 1.27.2).
+      FileUtils.cp(
+        File.join(__dir__, "..", "fixtures", "sample.pdf"),
+        test_pdf_path
+      )
     end
 
     after do
@@ -198,53 +154,16 @@ RSpec.describe "PDF Parsing with MuPDF" do
 
     it "automatically detects and parses PDF files" do
       result = parser.parse_file(test_pdf_path)
-      expect(result).to include("Test Content")
+      expect(result).to include("PDF document for testing")
     end
   end
 
   describe "#parse_bytes with PDF auto-detection" do
     it "detects PDF from magic bytes and parses correctly" do
-      pdf_content = <<~PDF
-        %PDF-1.4
-        1 0 obj
-        << /Type /Catalog /Pages 2 0 R >>
-        endobj
-        2 0 obj
-        << /Type /Pages /Kids [3 0 R] /Count 1 >>
-        endobj
-        3 0 obj
-        << /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>
-        endobj
-        4 0 obj
-        << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-        endobj
-        5 0 obj
-        << /Length 50 >>
-        stream
-        BT
-        /F1 12 Tf
-        100 700 Td
-        (Auto-detected PDF) Tj
-        ET
-        endstream
-        endobj
-        xref
-        0 6
-        0000000000 65535 f
-        0000000009 00000 n
-        0000000062 00000 n
-        0000000121 00000 n
-        0000000259 00000 n
-        0000000338 00000 n
-        trailer
-        << /Size 6 /Root 1 0 R >>
-        startxref
-        441
-        %%EOF
-      PDF
-
-      result = parser.parse_bytes(pdf_content.bytes)
-      expect(result).to include("Auto-detected PDF")
+      # Use sample.pdf fixture: minimal hand-crafted PDFs stopped yielding text in MuPDF >= 0.8.0.
+      pdf_bytes = File.read(File.join(__dir__, "..", "fixtures", "sample.pdf"), mode: "rb").bytes
+      result = parser.parse_bytes(pdf_bytes)
+      expect(result).to include("PDF document for testing")
     end
   end
 
