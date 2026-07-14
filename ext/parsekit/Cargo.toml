@@ -16,7 +16,7 @@ magnus = { version = "0.8", features = ["rb-sys"] }
 # MuPDF builds from source and statically links
 mupdf = { version = "0.8", default-features = false, features = [] }
 # OCR - Using tesseract-rs for both system and bundled modes
-tesseract-rs = "0.2"  # Tesseract with optional bundling
+tesseract-rs = "0.3"  # Tesseract with optional bundling
 image = "0.25"  # Image processing library (match rusty-tesseract's version)
 calamine = "0.36"  # Excel parsing
 docx-rs = "0.4"  # Word document parsing
