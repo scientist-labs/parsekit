@@ -390,25 +390,24 @@ impl Parser {
                     // Look for text elements (a:t or t)
                     let name = e.name();
                     let local_name_bytes = name.local_name();
-                    let local_name = std::str::from_utf8(local_name_bytes.as_ref()).unwrap_or("");
+                    let local_name: &str = local_name_bytes.as_ref();
                     if local_name == "t" {
                         in_text_element = true;
                     }
                 }
                 Ok(Event::Text(e)) => {
                     if in_text_element {
-                        if let Ok(text) = e.decode() {
-                            let text_str = text.trim();
-                            if !text_str.is_empty() {
-                                text_parts.push(text_str.to_string());
-                            }
+                        let text = e.xml10_content();
+                        let text_str = text.trim();
+                        if !text_str.is_empty() {
+                            text_parts.push(text_str.to_string());
                         }
                     }
                 }
                 Ok(Event::End(ref e)) => {
                     let name = e.name();
                     let local_name_bytes = name.local_name();
-                    let local_name = std::str::from_utf8(local_name_bytes.as_ref()).unwrap_or("");
+                    let local_name: &str = local_name_bytes.as_ref();
                     if local_name == "t" {
                         in_text_element = false;
                     }
@@ -475,7 +474,7 @@ impl Parser {
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Text(e)) => {
-                    txt.push_str(&e.decode().unwrap_or_default());
+                    txt.push_str(&e.xml10_content());
                     txt.push(' ');
                 }
                 Ok(Event::Eof) => break,
