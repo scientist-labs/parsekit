@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 name = "parsekit"
 
 [dependencies]
-magnus = { version = "0.8", features = ["rb-sys"] }
+magnus = { version = "0.9", features = ["rb-sys"] }
 # Document parsing - testing embedded C libraries
 # MuPDF builds from source and statically links
 mupdf = { version = "0.8", default-features = false, features = [] }
