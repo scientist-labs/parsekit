@@ -311,7 +311,10 @@ impl Parser {
                 Err(_) => continue,
             };
             
-            let name = file.name();
+            let name = match file.name() {
+                Ok(n) => n.into_owned(),
+                Err(_) => continue,
+            };
             // Match slide XML files (e.g., ppt/slides/slide1.xml)
             if name.starts_with("ppt/slides/slide") && name.ends_with(".xml") && !name.contains("_rels") {
                 // Extract slide number from filename
@@ -353,7 +356,10 @@ impl Parser {
                 Err(_) => continue,
             };
             
-            let name = file.name();
+            let name = match file.name() {
+                Ok(n) => n.into_owned(),
+                Err(_) => continue,
+            };
             // Match notes slide XML files
             if name.starts_with("ppt/notesSlides/notesSlide") && name.ends_with(".xml") && !name.contains("_rels") {
                 let mut contents = String::new();
